@@ -1,0 +1,57 @@
+name: Build SystemUpdater APK
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Minimal SystemUpdater APK
+        run: |
+          mkdir -p src/com/doogee/ota res
+          cat << 'EOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://android.com"
+              package="com.doogee.ota"
+              android:versionCode="1"
+              android:versionName="1.0">
+              <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+              <application android:label="System update">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.settings.SYSTEM_UPDATE_SETTINGS" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > src/com/doogee/ota/MainActivity.java
+          package com.doogee.ota;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.os.Bundle;
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  Intent i = getPackageManager().getLaunchIntentForPackage("dev.imranr.obtainium");
+                  if (i != null) startActivity(i);
+                  finish();
+              }
+          }
+          EOF
+
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          PLATFORM=$(ls -d $ANDROID_HOME/platforms/* | tail -n 1)/android.jar
+          javac -source 1.8 -target 1.8 -cp "$PLATFORM" -d . src/com/doogee/ota/MainActivity.java
+          $BUILD_TOOLS/d8 --output . com/doogee/ota/MainActivity.class
+          $BUILD_TOOLS/aapt package -f -M AndroidManifest.xml -I "$PLATFORM" -F unaligned.apk
+          $BUILD_TOOLS/aapt add unaligned.apk classes.dex
+          $BUILD_TOOLS/zipalign -f 4 unaligned.apk aligned.apk
+          keytool -genkey -v -keystore key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias key -storepass 123456 -keypass 123456 -dname "CN=Doogee"
+          $BUILD_TOOLS/apksigner sign --ks key.jks --ks-pass pass:123456 --out SystemUpdater.apk aligned.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SystemUpdater-APK
+          path: SystemUpdater.apk
