@@ -6,14 +6,14 @@ jobs:
     steps:
       - name: Build Minimal SystemUpdater APK
         run: |
-          mkdir -p src/com/doogee/ota res
+          mkdir -p src/com/doogee/ota
           cat << 'EOF' > AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://android.com"
               package="com.doogee.ota"
               android:versionCode="1"
               android:versionName="1.0">
-              <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+              <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="34" />
               <application android:label="System update">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
@@ -41,10 +41,11 @@ jobs:
           }
           EOF
 
-          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          PLATFORM=$(ls -d $ANDROID_HOME/platforms/* | tail -n 1)/android.jar
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          PLATFORM=$(ls -d $ANDROID_HOME/platforms/android-*/android.jar | sort -V | tail -n 1)
+          echo "Using PLATFORM: $PLATFORM"
           javac -source 1.8 -target 1.8 -cp "$PLATFORM" -d . src/com/doogee/ota/MainActivity.java
-          $BUILD_TOOLS/d8 --output . com/doogee/ota/MainActivity.class
+          $BUILD_TOOLS/d8 --lib "$PLATFORM" --output . com/doogee/ota/MainActivity.class
           $BUILD_TOOLS/aapt package -f -M AndroidManifest.xml -I "$PLATFORM" -F unaligned.apk
           $BUILD_TOOLS/aapt add unaligned.apk classes.dex
           $BUILD_TOOLS/zipalign -f 4 unaligned.apk aligned.apk
